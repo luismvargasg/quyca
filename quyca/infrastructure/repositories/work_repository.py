@@ -196,7 +196,6 @@ def get_works_available_filters(pipeline: list, query_params: QueryParams) -> di
         query_params.product_types,
         query_params.years,
         query_params.status,
-        query_params.subjects,
         query_params.topics,
         query_params.countries,
         query_params.groups_ranking,
@@ -254,43 +253,6 @@ def get_works_available_filters(pipeline: list, query_params: QueryParams) -> di
             {"$match": {"open_access.open_access_status": {"$ne": None}}},
             {"$group": {"_id": "$open_access.open_access_status", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-        ],
-        "subjects": pipeline.copy()
-        + [
-            {
-                "$project": {
-                    "subjects.source": 1,
-                    "subjects.subjects.id": 1,
-                    "subjects.subjects.name": 1,
-                    "subjects.subjects.level": 1,
-                }
-            },
-            {"$unwind": "$subjects"},
-            {"$unwind": "$subjects.subjects"},
-            {
-                "$group": {
-                    "_id": {
-                        "source": "$subjects.source",
-                        "subject_id": "$subjects.subjects.id",
-                        "subject_name": "$subjects.subjects.name",
-                        "subject_level": "$subjects.subjects.level",
-                    },
-                    "count": {"$sum": 1},
-                }
-            },
-            {
-                "$group": {
-                    "_id": "$_id.source",
-                    "subjects": {
-                        "$addToSet": {
-                            "id": "$_id.subject_id",
-                            "name": "$_id.subject_name",
-                            "level": "$_id.subject_level",
-                            "count": "$count",
-                        }
-                    },
-                }
-            },
         ],
         "countries": pipeline.copy()
         + [
@@ -368,7 +330,6 @@ def set_product_filters(pipeline: list, query_params: QueryParams) -> None:
     set_product_type_filters(pipeline, query_params.product_types)
     set_year_filters(pipeline, query_params.years)
     set_status_filters(pipeline, query_params.status)
-    set_subject_filters(pipeline, query_params.subjects)
     set_topic_filters(pipeline, query_params.topics)
     set_country_filters(pipeline, query_params.countries)
     set_groups_ranking_filters(pipeline, query_params.groups_ranking)
@@ -412,18 +373,6 @@ def set_status_filters(pipeline: list, status: str | None) -> None:
             match_filters.append({"open_access.open_access_status": {"$nin": [None, "closed"]}})
         else:
             match_filters.append({"open_access.open_access_status": single_status})
-    pipeline += [{"$match": {"$or": match_filters}}]
-
-
-def set_subject_filters(pipeline: list, subjects: str | None) -> None:
-    if not subjects:
-        return
-    match_filters: list[dict[str, Any]] = []
-    for subject in subjects.split(","):
-        params = subject.split("_")
-        if len(params) == 1:
-            return
-        match_filters.append({"subjects.subjects": {"$elemMatch": {"level": int(params[0]), "name": params[1]}}})
     pipeline += [{"$match": {"$or": match_filters}}]
 
 
